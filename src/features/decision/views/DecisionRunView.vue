@@ -13,9 +13,34 @@ onMounted(() => {
 });
 
 // Helpers
-const formatCurrency = (val?: number) => val?.toLocaleString('th-TH') || '0';
-const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString('th-TH') : '-';
 const detail = computed(() => store.state.caseDetail);
+
+const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString('th-TH') : '-';
+
+// ✅ Smart Formatter: ดูหน่วยนับ (Currency) แล้วแสดงผลให้ถูกบริบท
+const formatValue = (val?: number) => {
+  if (val === undefined) return '0';
+  if (detail.value?.currency === 'Days') return `${val} Days`;
+  return val.toLocaleString('th-TH');
+};
+
+// ✅ Dynamic Label: เปลี่ยนชื่อหัวข้อตาม Domain
+const getLabel = (type: 'subject' | 'ref' | 'amount') => {
+  const domain = detail.value?.domain || 'PROCUREMENT';
+  
+  if (domain === 'HR') {
+     if (type === 'subject') return 'Employee';
+     if (type === 'ref') return 'Request ID';
+     if (type === 'amount') return 'Duration';
+  }
+  
+  // Default (Procurement)
+  if (type === 'subject') return 'Vendor';
+  if (type === 'ref') return 'PO Number';
+  if (type === 'amount') return 'Total Amount';
+  
+  return '';
+};
 
 // Visual Logic
 const getRecColor = (rec: string) => {
@@ -34,7 +59,7 @@ const handleRun = () => {
   <div v-if="store.state.isProcessing" class="h-[600px] flex flex-col items-center justify-center animate-pulse">
     <div class="w-16 h-16 border-4 border-slate-200 border-t-primary rounded-full animate-spin mb-4"></div>
     <p class="text-slate-500 font-medium">Running AI Policy Engine...</p>
-    <p class="text-xs text-slate-400 mt-2">Evaluating {{ store.state.rules.length }} Rules against Policy V3</p>
+    <p class="text-xs text-slate-400 mt-2">Evaluating Logic against {{ detail?.policyId }}</p>
   </div>
 
   <div v-else-if="detail" class="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-20 animate-enter">
@@ -75,7 +100,7 @@ const handleRun = () => {
                </div>
                <button 
                  @click="handleRun"
-                 class="inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold transition shadow-sm"
+                 class="inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold transition shadow-sm active:scale-95"
                >
                  <span class="material-icons-outlined text-sm">refresh</span> Re-run
                </button>
@@ -85,25 +110,40 @@ const handleRun = () => {
 
       <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
          <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
-             <h3 class="font-bold text-slate-800 text-sm">Case Snapshot</h3>
-             <span class="text-[10px] text-slate-400">ID: {{ detail.id }}</span>
+             <div class="flex items-center gap-2">
+                <h3 class="font-bold text-slate-800 text-sm">Case Snapshot</h3>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border font-bold">{{ detail.domain }}</span>
+             </div>
+             <span class="text-[10px] text-slate-400 font-mono">ID: {{ detail.id }}</span>
          </div>
-         <div class="grid grid-cols-4 gap-4">
+         
+         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">Total Amount</p>
-              <p class="text-lg font-mono font-bold text-slate-900">{{ formatCurrency(detail.amount) }}</p>
+              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">{{ getLabel('amount') }}</p>
+              <p class="text-lg font-mono font-bold text-slate-900">
+                  {{ formatValue(detail.amount) }}
+                  <span v-if="detail.currency !== 'Days'" class="text-xs text-slate-400 ml-1">{{ detail.currency }}</span>
+              </p>
             </div>
+            
             <div>
-              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">Vendor</p>
-              <p class="text-sm font-bold text-slate-800 truncate">{{ detail.vendorName }}</p>
+              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">{{ getLabel('subject') }}</p>
+              <p class="text-sm font-bold text-slate-800 truncate" :title="detail.subjectName">{{ detail.subjectName }}</p>
             </div>
+            
             <div>
-              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">PO Number</p>
-              <p class="text-sm font-mono text-slate-700">{{ detail.poNumber }}</p>
+              <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">{{ getLabel('ref') }}</p>
+              <p class="text-sm font-mono text-slate-700">{{ detail.referenceNo }}</p>
             </div>
+            
             <div>
               <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">Issue Date</p>
               <p class="text-sm font-mono text-slate-700">{{ formatDate(detail.issueDate) }}</p>
+            </div>
+
+            <div v-for="attr in detail.attributes" :key="attr.label">
+               <p class="text-[10px] uppercase text-slate-400 font-bold mb-1">{{ attr.label }}</p>
+               <p class="text-sm text-slate-700">{{ attr.value }}</p>
             </div>
          </div>
       </div>
@@ -141,10 +181,10 @@ const handleRun = () => {
                         <table class="w-full text-left text-xs">
                             <thead class="bg-amber-50/50 text-amber-700 font-bold border-b border-amber-100">
                                 <tr>
-                                    <th class="px-3 py-1.5">Condition Field</th>
+                                    <th class="px-3 py-1.5">Condition</th>
                                     <th class="px-3 py-1.5">Logic</th>
                                     <th class="px-3 py-1.5 text-right">Limit</th>
-                                    <th class="px-3 py-1.5 text-right">Actual Value</th>
+                                    <th class="px-3 py-1.5 text-right">Actual</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-amber-50">
@@ -162,7 +202,7 @@ const handleRun = () => {
           </div>
       </div>
 
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div v-if="detail.lineItems.length > 0" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
          <div class="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition">
             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Line Items ({{ detail.lineItems.length }})</span>
             <span class="material-icons-outlined text-slate-400 text-sm">expand_more</span>
@@ -170,7 +210,7 @@ const handleRun = () => {
          <table class="w-full text-left text-xs">
              <thead class="bg-white border-b border-slate-100 text-slate-400 font-medium">
                  <tr>
-                    <th class="px-4 py-2 font-normal">SKU / Desc</th>
+                    <th class="px-4 py-2 font-normal">Item / Desc</th>
                     <th class="px-4 py-2 text-right font-normal">Qty</th>
                     <th class="px-4 py-2 text-right font-normal">Total</th>
                  </tr>
@@ -182,7 +222,7 @@ const handleRun = () => {
                         <span class="text-slate-700">{{ item.item_desc }}</span>
                     </td>
                     <td class="px-4 py-2 text-right font-mono text-slate-500">{{ item.quantity }}</td>
-                    <td class="px-4 py-2 text-right font-mono text-slate-800">{{ formatCurrency(item.total_price) }}</td>
+                    <td class="px-4 py-2 text-right font-mono text-slate-800">{{ formatValue(item.total_price) }}</td>
                  </tr>
              </tbody>
          </table>

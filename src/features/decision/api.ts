@@ -2,73 +2,56 @@
 import { http } from '@/lib/http';
 import type { RuleResult, CaseFullDetail } from './types';
 
-// ============================================================
 // Types for Backend Responses
-// ============================================================
-
-// Response from GET /api/cases/{id}
 interface BackendCaseResponse {
   id: string;
+  domain?: string; // Expecting domain from backend
   vendor_id?: string;
   amount_total: number;
   status: string;
   created_at: string;
   priority_score: number;
-  decision_summary?: {
-    recommended_action: string;
-    risk_level: string;
-  };
   violations?: any[];
-  // ✅ Backend ส่ง raw มาด้วย (สำคัญมาก)
   raw?: {
     payload?: {
+      // Procurement Fields
       vendor_name?: string;
       amount_total?: number;
       po_number?: string;
+      payment_terms?: string;
+      incoterm?: string;
+      
+      // HR Fields (Future proof)
+      employee_name?: string;
+      leave_request_id?: string;
+      department?: string;
+      leave_type?: string;
+      days_count?: number;
+
+      // Common
       description?: string;
       issue_date?: string;
-      line_items?: Array<{
-        sku: string;
-        item_desc: string;
-        quantity: number;
-        unit_price: number;
-        total_price: number;
-      }>;
+      line_items?: Array<any>;
+      
+      // Meta
+      last_decision?: string;
+      risk_level?: string;
+      last_rule_results?: Array<any>;
     };
     policy_id?: string;
   };
 }
 
-// Response from POST /api/decisions/cases/{id}/decisions/run
 interface BackendRunResponse {
   status: string;
   case_id: string;
   run: {
     run_id: string;
-    rule_results: Array<{
-      rule_id: string;
-      description: string;
-      hit: boolean;
-      // ✅ Evidence Data: สิ่งที่บอกว่าทำไมกฎถึงไม่ผ่าน (Actual vs Expected)
-      matched: Array<{
-        field: string;
-        operator: string;
-        expected: any;
-        actual: any;
-      }>;
-    }>;
-    recommendation: {
-      decision: string;
-      required_role: string;
-      reason_codes: string[];
-    };
+    rule_results: Array<any>;
+    recommendation: any;
     policy_id?: string;
   };
 }
-
-// ============================================================
-// API Implementation
-// ============================================================
 
 export const decisionApi = {
   
@@ -79,64 +62,96 @@ export const decisionApi = {
     recommendation: string 
   }> {
     try {
-      // 🚀 Step 1: Run Analysis (เรียก Engine คำนวณสด)
-      // ใช้ POST เพื่อ trigger การตรวจกฎใหม่ล่าสุด
-      const runRes = await http.post<BackendRunResponse>(
-        `/api/decisions/cases/${caseId}/decisions/run`, 
-        {}
-      );
-      const runData = runRes.run;
-
-      // 📦 Step 2: Fetch Case Data (ข้อมูล Header/Payload)
       const caseRes = await http.get<BackendCaseResponse>(`/api/cases/${caseId}`);
       const payload = caseRes.raw?.payload || {};
+      const domain = caseRes.domain || 'PROCUREMENT'; // Default to Procurement
 
-      // 🛠️ Step 3: Map Rules & Evidence (Backend -> Frontend)
-      const rules: RuleResult[] = (runData.rule_results || []).map(r => ({
-        id: r.rule_id,
-        code: r.rule_id,
-        name: r.description || r.rule_id,
-        description: r.description,
-        status: r.hit ? 'FAIL' : 'PASS', // Hit = Risk Found
-        hit: r.hit,
-        matched: r.matched || [], // ✅ ส่งหลักฐานไปให้ UI วาดตาราง
-      }));
+      const lastDecision = payload.last_decision || 'PENDING';
+      const lastRisk = payload.risk_level || 'LOW';
 
-      // 📊 Step 4: Map Recommendation
-      const rec = runData.recommendation || {};
-      const riskLevel = rec.decision === 'APPROVE' ? 'LOW' : 
-                        rec.decision === 'REJECT' ? 'HIGH' : 'MEDIUM';
+      // --- 1. Map Rules (เหมือนเดิม) ---
+      const savedRules = payload.last_rule_results || [];
+      let rules: RuleResult[] = [];
 
-      // 📝 Step 5: Construct Full Detail Object
+      if (savedRules.length > 0) {
+        rules = savedRules.map((r: any) => ({
+            id: r.rule_id,
+            code: r.rule_id,
+            name: r.description || r.rule_id,
+            description: r.description,
+            status: r.hit ? 'FAIL' : 'PASS',
+            hit: r.hit,
+            matched: r.matched || [],
+            inputs: r.inputs
+        }));
+      } else {
+        // Mock for empty state
+        rules = [
+           { id: 'r1', code: 'CHECK_01', name: 'Policy Check', description: 'Checking policy compliance', status: 'PASS', hit: false, matched: [] }
+        ];
+      }
+
+      // --- 2. POLYMORPHIC MAPPER (The Magic 🪄) ---
+      let subject = 'Unknown';
+      let refNo = '-';
+      let amountVal = 0;
+      let curr = 'THB';
+      let attrs: { label: string; value: string }[] = [];
+
+      if (domain === 'HR') {
+          // Mapping for HR Domain
+          subject = payload.employee_name || 'Unknown Staff';
+          refNo = payload.leave_request_id || '-';
+          amountVal = payload.days_count || 0;
+          curr = 'Days';
+          attrs = [
+              { label: 'Department', value: payload.department || '-' },
+              { label: 'Leave Type', value: payload.leave_type || '-' }
+          ];
+      } else {
+          // Default: Procurement Mapping
+          subject = payload.vendor_name || caseRes.vendor_id || 'Unknown Vendor';
+          refNo = payload.po_number || '-';
+          amountVal = payload.amount_total || caseRes.amount_total || 0;
+          curr = 'THB';
+          attrs = [
+              { label: 'Payment Terms', value: payload.payment_terms || '30 Days' },
+              { label: 'Incoterm', value: payload.incoterm || 'DDP' }
+          ];
+      }
+
       const caseDetail: CaseFullDetail = {
         id: caseRes.id,
-        // พยายามดึงชื่อ Vendor จากหลายๆ ที่กันเหนียว
-        vendorName: payload.vendor_name || caseRes.vendor_id || 'Unknown Vendor',
-        amount: payload.amount_total || caseRes.amount_total || 0,
-        currency: 'THB',
-        poNumber: payload.po_number || '-',
+        domain: domain,
+        
+        subjectName: subject,
+        referenceNo: refNo,
+        amount: amountVal,
+        currency: curr,
+        
         description: payload.description || 'No description provided',
         issueDate: payload.issue_date || caseRes.created_at,
         status: caseRes.status,
-        riskLevel: riskLevel,
+        riskLevel: lastRisk,
         created_at: caseRes.created_at,
-        policyId: caseRes.raw?.policy_id || 'PROCUREMENT-001',
+        policyId: caseRes.raw?.policy_id || 'DEFAULT-POLICY',
         
-        // Map Line Items
-        lineItems: (payload.line_items || []).map(item => ({
+        lineItems: (payload.line_items || []).map((item: any) => ({
           sku: item.sku,
           item_desc: item.item_desc,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.total_price
-        }))
+        })),
+        
+        attributes: attrs
       };
 
       return {
         caseDetail,
         rules,
-        score: rec.decision === 'APPROVE' ? 98.5 : 65.0, // Mock Score ตามผลลัพธ์
-        recommendation: rec.decision || 'REVIEW'
+        score: lastDecision === 'APPROVE' ? 98.5 : (lastDecision === 'PENDING' ? 0 : 65.0),
+        recommendation: lastDecision
       };
 
     } catch (e) {
@@ -145,15 +160,21 @@ export const decisionApi = {
     }
   },
 
-  // ✅ Function สำหรับปุ่ม Re-run Analysis
   async runDecision(caseId: string): Promise<boolean> {
-    await http.post(`/api/decisions/cases/${caseId}/decisions/run`, {}); 
-    return true;
+    try {
+      await http.post<BackendRunResponse>(
+        `/api/decisions/cases/${caseId}/decisions/run`, 
+        {}
+      );
+      return true;
+    } catch (e) {
+      console.error('Run Decision Failed', e);
+      throw e;
+    }
   },
 
   async submitDecision(caseId: string, action: string, reason: string) {
     console.log(`[MOCK] Submitting ${action} for ${caseId}: ${reason}`);
-    // รอ Backend implement endpoint นี้ (POST /submit)
     return new Promise(r => setTimeout(r, 1000));
   }
 };

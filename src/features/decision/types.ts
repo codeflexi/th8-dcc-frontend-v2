@@ -2,7 +2,6 @@
 
 export type RuleStatus = 'PASS' | 'FAIL' | 'WARNING';
 
-
 export interface RuleMatch {
   field: string;
   operator: string;
@@ -12,16 +11,15 @@ export interface RuleMatch {
 
 export interface RuleResult {
   id: string;
-  code: string; // rule_id
-  name: string; // description
+  code: string; 
+  name: string; 
   description?: string;
   status: RuleStatus;
   hit: boolean;
-  matched: RuleMatch[]; // ✅ ข้อมูลสำคัญ: ทำไมถึงโดนจับ
-  inputs?: Record<string, any>; // ✅ ข้อมูล Context ณ ตอนนั้น
+  matched: RuleMatch[]; 
+  inputs?: Record<string, any>;
 }
 
-// ✅ เพิ่ม Structure สำหรับ Line Item
 export interface LineItem {
   sku: string;
   item_desc: string;
@@ -30,25 +28,38 @@ export interface LineItem {
   total_price: number;
 }
 
-// ✅ เพิ่ม Structure สำหรับ Case Info ที่ละเอียดขึ้น
+// ✅ Generic Attribute for extra info
+export interface CaseAttribute {
+  label: string;
+  value: string;
+}
+
+// ✅ Polymorphic Case Detail (Flexible)
 export interface CaseFullDetail {
   id: string;
-  vendorName: string;
-  amount: number;
-  currency: string;
-  poNumber: string;
+  domain: string; // 'PROCUREMENT' | 'HR' | ...
+  
+  // Generic Fields
+  subjectName: string;   // Vendor / Employee Name
+  referenceNo: string;   // PO No / Request ID
+  amount: number;        // Total Amount / Days
+  currency: string;      // THB / Days
+  
   description: string;
   issueDate: string;
   status: string;
   riskLevel: string;
   created_at: string;
-  lineItems: LineItem[]; // รับ Line Items มาโชว์
-  policyId?: string;     // รองรับ Policy Binding
+  policyId?: string;
+  
+  // Flexible Data
+  lineItems: LineItem[]; 
+  attributes: CaseAttribute[]; // Extra details specific to domain
 }
 
 export interface DecisionState {
   caseId: string;
-  caseDetail?: CaseFullDetail; // ✅ เก็บข้อมูลเคสเต็มๆ ไว้ที่นี่
+  caseDetail?: CaseFullDetail;
   recommendation: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW';
   confidenceScore: number;
   rules: RuleResult[];
