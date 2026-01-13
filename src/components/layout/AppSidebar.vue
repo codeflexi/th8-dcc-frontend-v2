@@ -65,6 +65,12 @@ const navItems = computed(() => [
   icon: 'terminal',  // ไอคอนใหม่ดู Technical
   disabled: false 
 },
+{ 
+  name: 'Copilot Workstation', 
+  path: '/copilot', 
+  icon: 'terminal',  // ไอคอนใหม่ดู Technical
+  disabled: false 
+},
   ]}
 ])
 </script>
@@ -77,7 +83,7 @@ const navItems = computed(() => [
           TH8
         </div>
         <div>
-          <h1 class="text-sm font-bold text-white leading-tight tracking-wide">Procurement<br/>Decision Center</h1>
+          <h1 class="text-sm font-bold text-white leading-tight tracking-wide">Decision<br/>Control Center</h1>
         </div>
       </div>
       <p class="text-[10px] text-slate-500 mt-2 font-mono">v1.0.0 • Enterprise</p>

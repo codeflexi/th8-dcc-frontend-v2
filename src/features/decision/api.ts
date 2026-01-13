@@ -2,6 +2,29 @@
 import { http } from '@/lib/http';
 import type { RuleResult, CaseFullDetail } from './types';
 
+// -----------------------------
+// 1. เพิ่ม Type ย่อยสำหรับ Story
+// -----------------------------
+export interface CaseStory {
+  headline: string;
+  risk_drivers: Array<{
+    label: string;
+    detail: string;
+    color: string;
+  }>;
+  business_impact: string[];
+  suggested_action: {
+    title: string;
+    description: string;
+  };
+  evidence_list: Array<{
+    title: string;
+    subtitle: string;
+    description: string;
+    source_code: string;
+  }>;
+}
+
 // Types for Backend Responses
 interface BackendCaseResponse {
   id: string;
@@ -10,8 +33,10 @@ interface BackendCaseResponse {
   amount_total: number;
   status: string;
   created_at: string;
+  evaluated_at?: string;
   priority_score: number;
   violations?: any[];
+  story?: CaseStory;
   raw?: {
     payload?: {
       // Procurement Fields
@@ -135,6 +160,8 @@ export const decisionApi = {
         riskLevel: lastRisk,
         created_at: caseRes.created_at,
         policyId: caseRes.raw?.policy_id || 'DEFAULT-POLICY',
+        story: caseRes.story || undefined,
+        evaluationDate: caseRes.evaluated_at || undefined,
         
         lineItems: (payload.line_items || []).map((item: any) => ({
           sku: item.sku,

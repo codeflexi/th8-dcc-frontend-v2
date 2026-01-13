@@ -24,7 +24,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-enter">
+ <div class="h-full  overflow-y-auto bg-slate-50 p-6">
+    <div class="max-w-6xl mx-auto w-full animate-enter space-y-6">
     
     <div>
       <h1 class="text-2xl font-bold text-slate-900">System Control Center</h1>
@@ -133,5 +134,6 @@ onMounted(async () => {
       </div>
 
     </div>
+  </div>
   </div>
 </template>

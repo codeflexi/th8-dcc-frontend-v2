@@ -3,6 +3,31 @@ import { http } from '@/lib/http';
 import type { CaseDTO, RiskLevel } from '@/types/case';
 
 // -----------------------------
+// 1. เพิ่ม Type ย่อยสำหรับ Story
+// -----------------------------
+export interface CaseStory {
+  headline: string;
+  risk_drivers: Array<{
+    label: string;
+    detail: string;
+    color: string;
+  }>;
+  business_impact: string[];
+  suggested_action: {
+    title: string;
+    description: string;
+  };
+  evidence_list: Array<{
+    title: string;
+    subtitle: string;
+    description: string;
+    source_code: string;
+  }>;
+}
+
+//
+
+// -----------------------------
 // Backend Interfaces
 // -----------------------------
 interface BackendCaseItem {
@@ -35,6 +60,8 @@ interface BackendCaseDetail extends BackendCaseItem {
     rule_name: string;
     severity: string;
   }>;
+  // ✅✅✅ เพิ่มบรรทัดนี้ครับ !!!
+  story?: CaseStory;
 }
 
 // -----------------------------
@@ -95,7 +122,8 @@ export const caseApi = {
       await http.post('/api/cases/ingest', {
         case_id: data.case_id,
         domain: data.domain || 'procurement',
-        payload: data.payload
+        payload: data.payload,
+        story: data.payload.story || null // ส่ง story ถ้ามี
       });
       return true;
     } catch (e) {

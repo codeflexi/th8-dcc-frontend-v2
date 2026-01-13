@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 
 // --- MOCK DATA ---
 const files = [
-  { id: 'f1', name: 'procurement-policy-v3.yaml', type: 'yaml', status: 'modified' },
+  { id: 'f1', name: 'procurement-policy-v1.yaml', type: 'yaml', status: 'modified' },
   { id: 'f2', name: 'vendor-scoring-weights.yaml', type: 'yaml', status: 'clean' },
   { id: 'f3', name: 'approval-matrix-2026.json', type: 'json', status: 'clean' },
   { id: 'f4', name: 'rag-knowledge-config.yaml', type: 'yaml', status: 'clean' },
@@ -11,39 +11,160 @@ const files = [
 
 const defaultYaml = `# TH8 Procurement Policy Definition
 # Last Updated: 2026-01-10 by Admin
-# Version: 3.2.0-draft
+# Version: 3.1.0-draft
 
 policy_id: PROCUREMENT-001
-environment: production
-risk_tolerance: low
+policy_name: Procurement Exception Control
+version: v3.1
+effective_date: 2026-01-01
 
+# ==========================================
+# System Configuration
+# ==========================================
+config:
+  high_risk_threshold: 200000   # ถ้ายอดเกินนี้ บังคับเป็น HIGH Risk ทันที
+  force_risk_level: HIGH
+
+scope:
+  decision_type: PROCUREMENT
+  applies_to:
+    - raw_material
+    - packaging
+    - indirect
+
+# ==========================================
+# Risk Thresholds (amount-based safety net)
+# ==========================================
+thresholds:
+  amount:
+    medium: 200000
+    high: 500000
+
+sla:
+  approval_due_hours: 24
+
+# ==========================================
+# Authority Matrix
+# ==========================================
+authority:
+  rules:
+    - condition: amount > 1000000
+      required_role: CFO
+    - condition: amount > 200000
+      required_role: COO
+    - condition: amount <= 200000
+      required_role: Procurement_Manager
+
+# ==========================================
+# Decision Rules
+# ==========================================
 rules:
-  - id: SPLIT_PO_CHECK
-    name: "Split PO Detection"
-    enabled: true
-    severity: HIGH
-    description: "Detects multiple POs to same vendor within time window"
-    parameters:
-      window_hours: 48
-      # Threshold amount in THB
-      threshold_amount: 1000000 
-      group_by: [vendor_id, requester_id]
 
-  - id: BUDGET_LIMIT
-    name: "Budget Availability Check"
-    enabled: true
-    severity: BLOCKER
-    parameters:
-      api_endpoint: "/sap/v2/budget/check"
-      strict_mode: true
+  # -------------------------------------------------
+  # 1. High Amount Control
+  # -------------------------------------------------
+  - id: HIGH_AMOUNT_ESCALATION
+    description: "High value procurement (>200k) must be escalated"
+    risk_impact: HIGH
+    when:
+      - field: amount
+        operator: ">"
+        value: 200000
+    then:
+      decision: ESCALATE
 
-  - id: VENDOR_SLA
-    name: "Vendor Reliability Score"
-    enabled: true
-    severity: WARNING
-    parameters:
-      min_score: 80
-      lookback_months: 6
+  # -------------------------------------------------
+  # 2. SLA Risk
+  # -------------------------------------------------
+  - id: SLA_RISK
+    description: "Urgent procurement (close to SLA deadline)"
+    risk_impact: MEDIUM
+    when:
+      - field: hours_to_sla
+        operator: "<"
+        value: 24
+    then:
+      decision: REVIEW
+
+  # -------------------------------------------------
+  # 3. Vendor Risk
+  # -------------------------------------------------
+  - id: VENDOR_BLACKLIST_CHECK
+    description: "Critical: Vendor is flagged as BLACKLISTED"
+    risk_impact: CRITICAL
+    when:
+      - field: vendor_status
+        operator: "=="
+        value: "BLACKLISTED"
+    then:
+      decision: REJECT
+
+  - id: VENDOR_RATING_LOW
+    description: "Warning: Vendor performance rating is below standard (Score < 60)"
+    risk_impact: MEDIUM
+    when:
+      - field: vendor_rating
+        operator: "<"
+        value: 60
+    then:
+      decision: REVIEW
+
+  # -------------------------------------------------
+  # 4. Budget Control
+  # -------------------------------------------------
+  - id: BUDGET_INSUFFICIENT
+    description: "Purchase amount exceeds remaining department budget"
+    risk_impact: CRITICAL
+    when:
+      - field: budget_remaining
+        operator: "<"
+        value: 0
+    then:
+      decision: REJECT
+
+  # -------------------------------------------------
+  # 5. Fraud Risk — Split PO
+  # -------------------------------------------------
+  - id: POTENTIAL_SPLIT_PO
+    description: "Fraud Risk: Potential Split PO detected (Multiple orders < 24h)"
+    risk_impact: HIGH
+    when:
+      - field: po_count_24h
+        operator: ">"
+        value: 1
+      - field: total_spend_24h
+        operator: ">"
+        value: 100000
+    then:
+      decision: ESCALATE
+
+  # -------------------------------------------------
+  # 6. AI Semantic Risk
+  # -------------------------------------------------
+  - id: VENDOR_CATEGORY_MISMATCH
+    type: llm_semantic_check
+    description: "Check if items match vendor business category"
+    risk_impact: MEDIUM
+    inputs:
+      - vendor_name
+      - line_items
+    then:
+      decision: REVIEW
+
+# ==========================================
+# Override & Governance
+# ==========================================
+override:
+  allow_manual_override: true
+  override_requires_reason: true
+
+# ==========================================
+# Audit Policy
+# ==========================================
+audit:
+  log_level: INFO
+  retention_days: 90
+
 `;
 
 // --- STATE ---
@@ -86,6 +207,7 @@ function savePolicy() {
 </script>
 
 <template>
+   <div class="h-full flex flex-col bg-slate-900 overflow-hidden">
   <div class="h-[calc(100vh-100px)] flex flex-col bg-slate-900 text-slate-300 rounded-lg overflow-hidden border border-slate-700 shadow-2xl animate-enter">
     
     <div class="h-12 bg-slate-950 flex items-center justify-between px-4 border-b border-slate-800 shrink-0">
@@ -211,4 +333,5 @@ function savePolicy() {
        </div>
     </div>
   </div>
+   </div>
 </template>

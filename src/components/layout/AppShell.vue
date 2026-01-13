@@ -10,8 +10,9 @@ import AppHeader from './AppHeader.vue'
     <div class="flex flex-col flex-1 min-w-0">
       <AppHeader />
       
-      <main class="flex-1 overflow-y-auto p-8 scroll-smooth relative">
-        <div class="max-w-7xl mx-auto">
+      <main class="flex-1 overflow-hidden relative flex flex-col">
+        
+        <div class="w-full h-full">
           <RouterView v-slot="{ Component }">
             <Transition 
               name="page" 
@@ -23,6 +24,7 @@ import AppHeader from './AppHeader.vue'
             </Transition>
           </RouterView>
         </div>
+
       </main>
     </div>
   </div>

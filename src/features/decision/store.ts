@@ -26,6 +26,10 @@ export const useDecisionStore = defineStore('decision', () => {
       state.value.rules = data.rules;
       state.value.confidenceScore = data.score;
       state.value.recommendation = data.recommendation as any;
+      
+   
+      
+      
 
     } catch (e) {
       console.error(e);

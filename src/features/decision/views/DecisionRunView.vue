@@ -56,7 +56,12 @@ const handleRun = () => {
 </script>
 
 <template>
-  <div v-if="store.state.isProcessing" class="h-[600px] flex flex-col items-center justify-center animate-pulse">
+  <div class="absolute inset-0 overflow-y-auto bg-slate-50 scroll-smooth">
+    
+    <div class="max-w-7xl mx-auto px-6 py-8 pb-24 space-y-6">
+
+   
+  <div v-if="store.state.isProcessing" class=" flex flex-col items-center justify-center animate-pulse">
     <div class="w-16 h-16 border-4 border-slate-200 border-t-primary rounded-full animate-spin mb-4"></div>
     <p class="text-slate-500 font-medium">Running AI Policy Engine...</p>
     <p class="text-xs text-slate-400 mt-2">Evaluating Logic against {{ detail?.policyId }}</p>
@@ -92,11 +97,13 @@ const handleRun = () => {
                <div class="text-[10px] uppercase font-bold text-slate-400 mb-1">Risk Level</div>
                <div class="text-2xl font-bold mb-3" 
                     :class="detail.riskLevel === 'HIGH' ? 'text-rose-600' : 'text-emerald-600'">
-                 {{ detail.riskLevel }}
+                 {{ detail.riskLevel }}   
                </div>
                <button @click="handleRun" class="inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold transition shadow-sm active:scale-95">
                  <span class="material-icons-outlined text-sm">refresh</span> Re-run
+              
                </button>
+               <div class="inline-flex items-center gap-2 px-3  py-1.5 text-xs text-slate-500">Last Run : {{ formatDate(detail.evaluationDate) }}</div>
             </div>
          </div>
       </div>
@@ -289,4 +296,6 @@ const handleRun = () => {
     </div>
 
   </div>
+  </div>
+</div>
 </template>

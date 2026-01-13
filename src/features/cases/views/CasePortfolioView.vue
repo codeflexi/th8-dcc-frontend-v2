@@ -37,10 +37,9 @@ const fetchData = async () => {
       vendor: item.vendor_id || item.vendor_name || item.vendor || 'Unknown Vendor',
       amount: item.amount_total !== undefined ? item.amount_total : item.amount || 0,
       risk_level: item.risk_level || item.payload?.risk_level || 'LOW',
-      // Mock Data สำหรับ UI ให้เหมือนรูป (ของจริงต้องดึงจาก backend หรือคำนวณ)
       po_number: item.payload?.po_number || `PO-${new Date().getFullYear()}-${item.id.split('-').pop()}`,
       category: item.domain === 'procurement' ? 'IT Equipment' : 'General Service',
-      sla_hours: Math.floor(Math.random() * 48) + 1 // Mock SLA logic
+      sla_hours: Math.floor(Math.random() * 48) + 1
     }));
 
     pagination.value = { total: res.total, pages: res.pages };
@@ -70,28 +69,27 @@ const formatDate = (dateString: string) => {
     });
 };
 
-// Style ตาม Design System ในรูป
 const getRiskBadgeStyle = (level: string) => {
   if (!level) return 'bg-slate-100 text-slate-500 border-slate-200';
   switch (level.toUpperCase()) {
-    case 'CRITICAL':
-      return 'bg-rose-100 text-rose-800 border-rose-200 shadow-sm';
-    case 'HIGH':
-      return 'bg-red-50 text-red-700 border-red-100';
-    case 'MEDIUM':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'LOW':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    default:
-      return 'bg-slate-50 text-slate-500 border-slate-200';
+    case 'CRITICAL': return 'bg-rose-100 text-rose-800 border-rose-200 shadow-sm';
+    case 'HIGH': return 'bg-red-50 text-red-700 border-red-100';
+    case 'MEDIUM': return 'bg-amber-50 text-amber-700 border-amber-100';
+    case 'LOW': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    default: return 'bg-slate-50 text-slate-500 border-slate-200';
   }
 };
 </script>
 
 <template>
-  <div class="space-y-6 animate-enter pb-20">
+
+   
+
+  <div class="h-full w-full overflow-y-auto bg-slate-50">
     
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="max-w-7xl mx-auto px-6 py-8 pb-20 animate-enter space-y-6">
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
         <div>
           <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-wider">Total Exposure</p>
@@ -124,7 +122,7 @@ const getRiskBadgeStyle = (level: string) => {
       </div>
     </div>
 
-    <div class="flex flex-col md:flex-row gap-4 justify-between items-center">
+    <div class="flex flex-col md:flex-row gap-4 justify-between items-center shrink-0">
        <div class="relative w-full md:w-96 group">
            <span class="absolute left-3 top-3 material-icons-outlined text-slate-400 group-focus-within:text-slate-800 transition">search</span>
            <input v-model.lazy="filters.search" 
@@ -147,6 +145,24 @@ const getRiskBadgeStyle = (level: string) => {
           </button>
        </div>
     </div>
+
+      <div class="flex justify-between items-center pt-4 border-t border-slate-100 shrink-0" v-if="items.length > 0">
+         <span class="text-xs font-medium text-slate-400">
+            Showing page {{ filters.page }} of {{ pagination.pages }}
+         </span>
+         <div class="flex gap-2">
+            <button :disabled="filters.page === 1" 
+                    @click="filters.page--" 
+                    class="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
+               Previous
+            </button>
+            <button :disabled="filters.page === pagination.pages" 
+                    @click="filters.page++" 
+                    class="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
+               Next
+            </button>
+         </div>
+      </div>
 
     <div class="space-y-4">
       
@@ -221,7 +237,7 @@ const getRiskBadgeStyle = (level: string) => {
 
     </div>
 
-    <div class="flex justify-between items-center pt-4 border-t border-slate-100" v-if="items.length > 0">
+    <div class="flex justify-between items-center pt-4 border-t border-slate-100 shrink-0" v-if="items.length > 0">
          <span class="text-xs font-medium text-slate-400">
             Showing page {{ filters.page }} of {{ pagination.pages }}
          </span>
@@ -239,5 +255,6 @@ const getRiskBadgeStyle = (level: string) => {
          </div>
       </div>
 
+  </div>
   </div>
 </template>

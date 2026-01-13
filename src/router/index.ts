@@ -1,7 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import AppShell from '@/components/layout/AppShell.vue'
-
-
+// ใน src/router/index.ts
+ import CopilotWorkstationView from '@/features/copilot/views/CopilotWorkstationView.vue'
+// import CopilotWorkstationView from '@/features/copilot/views/CopilotAgentView.vue'
 
 
 const router = createRouter({
@@ -30,6 +31,15 @@ const router = createRouter({
   name: 'SystemControl',
   component: () => import('@/features/admin/views/SystemControlView.vue')
 },
+{
+    path: '/copilot',
+    name: 'copilot',
+    component: CopilotWorkstationView,
+    meta: {
+      layout: 'AppLayout', // หรือชื่อ Layout หลักที่คุณใช้
+      requiresAuth: false // กำหนดตามความต้องการของคุณ
+    }
+  },
 {
   path: 'system/policy-editor',
   name: 'PolicyStudio',

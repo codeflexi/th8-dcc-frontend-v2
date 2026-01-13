@@ -2,17 +2,20 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 
-// ✅ 1. Import API และ Types ที่เราแยกไว้
-import { copilotApi, type CopilotEvent } from '@/features/evidence/ api_copilot';
-import type { EvidenceItem } from '@/features/evidence/types'; 
-
-// --- Local Types (เฉพาะส่วน UI Chat) ---
+// --- Types ---
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   timestamp: string;
   isStreaming?: boolean;
+}
+
+interface EvidenceItem {
+  id: string;
+  docTitle: string;
+  content: string;
+  score: number;
 }
 
 // --- State ---
@@ -34,11 +37,11 @@ const messages = ref<ChatMessage[]>([
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 ]);
-const evidenceList = ref<EvidenceItem[]>([]); 
+const evidenceList = ref<EvidenceItem[]>([]);
 const activeDoc = ref<EvidenceItem | null>(null);
 const isLoading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
-const workflowStatus = ref<string>('Ready'); 
+const workflowStatus = ref<string>('Ready'); // เอาไว้โชว์สถานะ Trace
 
 // --- Initialization ---
 onMounted(() => {
@@ -47,7 +50,7 @@ onMounted(() => {
   }
 });
 
-// --- Resizer Logic ---
+// --- Resizer Logic (เหมือนเดิม) ---
 const startResize = () => {
   isDragging.value = true;
   document.addEventListener('mousemove', handleMouseMove);
@@ -87,12 +90,12 @@ const scrollToBottom = () => {
   });
 };
 
-// --- 🔥 UPDATED: REAL API CONNECTION LOGIC ---
+// --- 🔥 REAL API CONNECTION LOGIC ---
 const handleSend = async () => {
   const userText = query.value.trim();
   if (!userText) return;
 
-  // 1. Update UI (User Message)
+  // 1. Add User Message
   messages.value.push({
     id: Date.now().toString(),
     role: 'user',
@@ -103,26 +106,66 @@ const handleSend = async () => {
   isLoading.value = true;
   scrollToBottom();
 
-  // 2. Prepare Assistant Message Placeholder
+  // 2. Prepare Assistant Message (Placeholder for streaming)
   const aiMsgId = Date.now().toString() + '_ai';
   messages.value.push({
     id: aiMsgId,
     role: 'assistant',
-    text: '',
+    text: '', // เริ่มต้นเป็นข้อความว่าง เดี๋ยวรอ Stream มาเติม
     timestamp: 'Thinking...',
     isStreaming: true
   });
   
+  // Clear old context specific to previous query (Optional)
+  // evidenceList.value = []; 
+  // activeDoc.value = null;
+
   try {
-    // ✅ 3. Call API via Service (Clean Code)
-    await copilotApi.streamChat(
-      { case_id: caseId, query: userText },
-      (event) => handleStreamEvent(event, aiMsgId) // Callback
-    );
+    // 3. Call API (ผ่าน Vite Proxy /api -> FastAPI Port 8000)
+    const response = await fetch('/api/copilot/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        case_id: caseId,
+        query: userText
+      })
+    });
+
+    if (!response.body) throw new Error("ReadableStream not supported.");
+
+    // 4. Setup Stream Reader
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      // Decode Chunk และรวมกับ Buffer (กันกรณี JSON ขาดตอน)
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // Process ทีละบรรทัด (บรรทัดสุดท้ายอาจจะไม่จบ เก็บไว้ใน buffer)
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        try {
+          const event = JSON.parse(line);
+          handleStreamEvent(event, aiMsgId);
+        } catch (err) {
+          console.warn("Stream parse error:", err, line);
+        }
+      }
+    }
 
   } catch (err) {
-    // Error handling is managed inside api.ts (emitting error event) or caught here
-    console.error("Chat Error:", err);
+    console.error("API Error:", err);
+    // แจ้งเตือนใน Chat box
+    const aiMsg = messages.value.find(m => m.id === aiMsgId);
+    if (aiMsg) aiMsg.text += "\n[System Error: Connection failed]";
   } finally {
     isLoading.value = false;
     const aiMsg = messages.value.find(m => m.id === aiMsgId);
@@ -133,46 +176,43 @@ const handleSend = async () => {
   }
 };
 
-// --- 🔥 EVENT HANDLER (Map API Data to UI) ---
-const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
+// --- 🔥 STREAM EVENT HANDLER ---
+const handleStreamEvent = (event: any, aiMsgId: string) => {
   const aiMsg = messages.value.find(m => m.id === aiMsgId);
   
   switch (event.type) {
     case 'trace':
+      // อัปเดตสถานะการทำงาน (เช่น "Scanning Policy...", "Reasoning...")
       workflowStatus.value = event.data.desc || event.data.title;
+      // ถ้าอยากโชว์ Trace ใน Chat ก็ทำได้ แต่ตอนนี้เราโชว์แค่ Status
       break;
 
     case 'evidence_reveal':
-      // Map ข้อมูลจาก API ให้ตรงกับ Interface EvidenceItem
-      const newEvidence: EvidenceItem = {
+      // เจอหลักฐาน -> เพิ่มลง Evidence List
+      const newEvidence = {
         id: event.data.file_id || `doc-${Date.now()}`,
-        docId: event.data.file_name, // Map ให้ตรงกับ Type
         docTitle: event.data.file_name,
         content: event.data.highlight_text,
-        score: event.data.score || 0,
-        matchType: 'SEMANTIC' // Default
+        score: event.data.score || 0
       };
       
-      // ป้องกันข้อมูลซ้ำ
+      // เช็คว่าซ้ำไหม (Optional)
       if (!evidenceList.value.some(e => e.content === newEvidence.content)) {
         evidenceList.value.push(newEvidence);
       }
       
-      // Auto-select
+      // Auto-select ถ้ายังไม่ได้เลือกอะไร
       if (!activeDoc.value) {
         activeDoc.value = newEvidence;
       }
       break;
 
     case 'message_chunk':
+      // ข้อความตอบกลับ (ทีละตัวอักษร)
       if (aiMsg) {
         aiMsg.text += event.data.text;
         scrollToBottom();
       }
-      break;
-      
-    case 'error':
-      if (aiMsg) aiMsg.text += `\n[System Error: ${event.data.message}]`;
       break;
   }
 };

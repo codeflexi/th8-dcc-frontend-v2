@@ -34,6 +34,29 @@ export interface CaseAttribute {
   value: string;
 }
 
+// -----------------------------
+// 1. เพิ่ม Type ย่อยสำหรับ Story
+// -----------------------------
+export interface CaseStory {
+  headline: string;
+  risk_drivers: Array<{
+    label: string;
+    detail: string;
+    color: string;
+  }>;
+  business_impact: string[];
+  suggested_action: {
+    title: string;
+    description: string;
+  };
+  evidence_list: Array<{
+    title: string;
+    subtitle: string;
+    description: string;
+    source_code: string;
+  }>;
+}
+
 // ✅ Polymorphic Case Detail (Flexible)
 export interface CaseFullDetail {
   id: string;
@@ -51,6 +74,8 @@ export interface CaseFullDetail {
   riskLevel: string;
   created_at: string;
   policyId?: string;
+  // ✅✅✅ เพิ่มบรรทัดนี้ครับ !!!
+  story?: CaseStory;
   
   // Flexible Data
   lineItems: LineItem[]; 
