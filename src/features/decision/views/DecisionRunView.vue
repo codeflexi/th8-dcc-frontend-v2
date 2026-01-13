@@ -152,6 +152,7 @@ const handleRun = () => {
                  <tr>
                     <th class="px-4 py-2 font-normal">Item / Desc</th>
                     <th class="px-4 py-2 text-right font-normal">Qty</th>
+                     <th class="px-4 py-2 text-right font-normal">Unit Price</th>
                     <th class="px-4 py-2 text-right font-normal">Total</th>
                  </tr>
              </thead>
@@ -162,6 +163,7 @@ const handleRun = () => {
                         <span class="text-slate-700">{{ item.item_desc }}</span>
                     </td>
                     <td class="px-4 py-2 text-right font-mono text-slate-500">{{ item.quantity }}</td>
+                    <td class="px-4 py-2 text-right font-mono text-slate-500">{{ formatValue(item.unit_price)  }}</td>
                     <td class="px-4 py-2 text-right font-mono text-slate-800">{{ formatValue(item.total_price) }}</td>
                  </tr>
              </tbody>

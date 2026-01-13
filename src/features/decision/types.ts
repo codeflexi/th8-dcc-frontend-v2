@@ -76,6 +76,7 @@ export interface CaseFullDetail {
   policyId?: string;
   // ✅✅✅ เพิ่มบรรทัดนี้ครับ !!!
   story?: CaseStory;
+  evaluationDate?: string;
   
   // Flexible Data
   lineItems: LineItem[]; 

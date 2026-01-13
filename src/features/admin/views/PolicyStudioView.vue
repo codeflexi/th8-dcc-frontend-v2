@@ -56,6 +56,14 @@ authority:
       required_role: Procurement_Manager
 
 # ==========================================
+# Contract Configuration
+# ==========================================
+contract_compliance:
+  validity_check: true        # ตรวจวันหมดอายุ
+  price_check: true           # ตรวจราคา
+  max_allowed_variance_pct: 5.0  # ยอมให้ราคาเกินสัญญาได้ไม่เกิน 5% (ถ้าเกินถือว่าผิดกฎ)
+
+# ==========================================
 # Decision Rules
 # ==========================================
 rules:
@@ -150,7 +158,35 @@ rules:
       - line_items
     then:
       decision: REVIEW
+  # -------------------------------------------------
+  # 7. Contract Validity (NEW ✅)
+  # -------------------------------------------------
+  - id: CONTRACT_EXPIRED
+    description: "Purchase order referencing an expired contract"
+    risk_impact: CRITICAL
+    # Logic นี้ซับซ้อน จะถูก handle โดย EvaluateContractNode
+    # แต่เราประกาศไว้ตรงนี้เพื่อให้ Engine รู้จัก Action
+    then:
+      decision: REJECT
 
+  # -------------------------------------------------
+  # 8. Price Variance (NEW ✅)
+  # -------------------------------------------------
+  - id: CONTRACT_PRICE_VARIANCE
+    description: "Unit price exceeds contract agreement (> 5%)"
+    risk_impact: HIGH
+    then:
+      decision: ESCALATE
+
+  # -------------------------------------------------
+  # 9. No Contract Found (NEW ✅)
+  # -------------------------------------------------
+  - id: NO_CONTRACT_REFERENCE
+    description: "Item purchased without active contract reference"
+    risk_impact: MEDIUM
+    then:
+      decision: REVIEW
+      
 # ==========================================
 # Override & Governance
 # ==========================================
@@ -164,6 +200,7 @@ override:
 audit:
   log_level: INFO
   retention_days: 90
+
 
 `;
 

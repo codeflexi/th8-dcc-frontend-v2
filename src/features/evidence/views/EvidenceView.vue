@@ -2,11 +2,17 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 
-// ✅ 1. Import API และ Types ที่เราแยกไว้
+// ✅ 1. Import API และ Types
 import { copilotApi, type CopilotEvent } from '@/features/evidence/ api_copilot';
 import type { EvidenceItem } from '@/features/evidence/types'; 
+import { caseApi } from '@/features/cases/api';
 
-// --- Local Types (เฉพาะส่วน UI Chat) ---
+// ✅ 2. รับ Props เพื่อใช้เช็ค Rule Results
+const props = defineProps<{
+  caseData?: any
+}>();
+
+// --- Local Types ---
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -17,7 +23,7 @@ interface ChatMessage {
 
 // --- State ---
 const route = useRoute();
-const caseId = (route.params.caseId as string) || 'CASE-PO-2026-5286';
+const caseId = (route.params.caseId as string) || props.caseData?.case_id || 'CASE-PO-2026-5286';
 
 // Split Pane State
 const containerRef = ref<HTMLElement | null>(null);
@@ -40,10 +46,74 @@ const isLoading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
 const workflowStatus = ref<string>('Ready'); 
 
+// --- ✅ NEW: Auto-Trigger Evidence Search Logic ---
+const triggerAutoContext = async () => {
+  const payload = props.caseData?.payload;
+  
+  // ตรวจสอบว่ามี Rule เรื่องราคา (CONTRACT_PRICE_VARIANCE) ที่ Matched หรือไม่
+  const hasPriceVariance = payload?.last_rule_results?.some(
+    (r: any) => r.rule_id === 'CONTRACT_PRICE_VARIANCE' && r.hit
+  );
+
+  if (hasPriceVariance) {
+    const vendor = payload?.vendor_name || '';
+    const sku = payload?.line_items?.[0]?.sku || '';
+    const autoQuery = `ตรวจสอบราคาสินค้า ${sku} ในสัญญาของ vendor ${vendor}`;
+    
+    isLoading.value = true;
+    workflowStatus.value = 'Analyzing Contract...';
+    
+    try {
+      await copilotApi.streamChat(
+        { case_id: caseId, query: autoQuery },
+        (event) => {
+          // ส่ง 'auto' เพื่อให้ handleStreamEvent รู้ว่าไม่ต้องเอาข้อความลง Chat box
+          handleStreamEvent(event, 'auto'); 
+        }
+      );
+    } catch (err) {
+      console.error("Auto Search Error:", err);
+    } finally {
+      isLoading.value = false;
+      workflowStatus.value = 'Ready';
+    }
+  }
+};
+
+// 1. เพิ่มฟังก์ชันสำหรับเช็คกฎและสั่งค้นหาอัตโนมัติ
+const initAutoSearch = async () => {
+  try {
+    // ดึงข้อมูลเคสมาเช็คว่าติดกฎเรื่องราคาไหม
+    const caseDetail = await caseApi.getById(caseId);
+    const results = caseDetail?.payload?.last_rule_results || [];
+    
+    // ถ้าเจอว่าราคาผิดปกติ (Rule Hit)
+    if (results.some((r: any) => r.rule_id === 'CONTRACT_PRICE_VARIANCE' && r.hit)) {
+      const payload = caseDetail.payload;
+      const autoQuery = `ตรวจสอบราคา ${payload.line_items?.[0]?.sku} ของ ${payload.vendor_name}`;
+      
+      isLoading.value = true;
+      // สั่ง AI ค้นหาเบื้องหลัง (ไม่โชว์ข้อความใน Chat)
+      await copilotApi.streamChat(
+        { case_id: caseId, query: autoQuery },
+        (event) => handleStreamEvent(event, 'auto') // 'auto' จะทำให้ไม่ขึ้นข้อความในแชท
+      );
+    }
+  } catch (err) {
+    console.error("Auto Search Error:", err);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 // --- Initialization ---
 onMounted(() => {
   if (containerRef.value) {
     leftPanelWidth.value = containerRef.value.clientWidth * 0.4;
+  }
+  // ✅ เรียกฟังก์ชันดึงบริบทอัตโนมัติเมื่อโหลดหน้า
+  if (props.caseData) {
+    triggerAutoContext();
   }
 });
 
@@ -87,12 +157,11 @@ const scrollToBottom = () => {
   });
 };
 
-// --- 🔥 UPDATED: REAL API CONNECTION LOGIC ---
+// --- API Connection Logic ---
 const handleSend = async () => {
   const userText = query.value.trim();
   if (!userText) return;
 
-  // 1. Update UI (User Message)
   messages.value.push({
     id: Date.now().toString(),
     role: 'user',
@@ -103,7 +172,6 @@ const handleSend = async () => {
   isLoading.value = true;
   scrollToBottom();
 
-  // 2. Prepare Assistant Message Placeholder
   const aiMsgId = Date.now().toString() + '_ai';
   messages.value.push({
     id: aiMsgId,
@@ -114,14 +182,11 @@ const handleSend = async () => {
   });
   
   try {
-    // ✅ 3. Call API via Service (Clean Code)
     await copilotApi.streamChat(
       { case_id: caseId, query: userText },
-      (event) => handleStreamEvent(event, aiMsgId) // Callback
+      (event) => handleStreamEvent(event, aiMsgId) 
     );
-
   } catch (err) {
-    // Error handling is managed inside api.ts (emitting error event) or caught here
     console.error("Chat Error:", err);
   } finally {
     isLoading.value = false;
@@ -133,7 +198,7 @@ const handleSend = async () => {
   }
 };
 
-// --- 🔥 EVENT HANDLER (Map API Data to UI) ---
+// --- Event Handler ---
 const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
   const aiMsg = messages.value.find(m => m.id === aiMsgId);
   
@@ -143,36 +208,34 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
       break;
 
     case 'evidence_reveal':
-      // Map ข้อมูลจาก API ให้ตรงกับ Interface EvidenceItem
       const newEvidence: EvidenceItem = {
         id: event.data.file_id || `doc-${Date.now()}`,
-        docId: event.data.file_name, // Map ให้ตรงกับ Type
+        docId: event.data.file_name,
         docTitle: event.data.file_name,
         content: event.data.highlight_text,
         score: event.data.score || 0,
-        matchType: 'SEMANTIC' // Default
+        matchType: 'SEMANTIC'
       };
       
-      // ป้องกันข้อมูลซ้ำ
       if (!evidenceList.value.some(e => e.content === newEvidence.content)) {
         evidenceList.value.push(newEvidence);
       }
       
-      // Auto-select
       if (!activeDoc.value) {
         activeDoc.value = newEvidence;
       }
       break;
 
     case 'message_chunk':
-      if (aiMsg) {
+      // ✅ ไม่แสดงข้อความในแชทหากเป็นการรันแบบเบื้องหลัง (Auto)
+      if (aiMsg && aiMsgId !== 'auto') {
         aiMsg.text += event.data.text;
         scrollToBottom();
       }
       break;
       
     case 'error':
-      if (aiMsg) aiMsg.text += `\n[System Error: ${event.data.message}]`;
+      if (aiMsg && aiMsgId !== 'auto') aiMsg.text += `\n[System Error: ${event.data.message}]`;
       break;
   }
 };
@@ -180,7 +243,6 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
 
 <template>
   <div class="absolute inset-0 overflow-y-auto bg-slate-50 scroll-smooth">
-    
     <div ref="containerRef" class="flex h-full w-full bg-slate-100 overflow-hidden font-sans relative select-none">
       
       <div 
