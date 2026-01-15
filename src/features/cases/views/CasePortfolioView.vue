@@ -82,18 +82,17 @@ const getRiskBadgeStyle = (level: string) => {
 </script>
 
 <template>
-
-   
-
   <div class="h-full w-full overflow-y-auto bg-slate-50">
     
     <div class="max-w-7xl mx-auto px-6 py-8 pb-20 animate-enter space-y-6">
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+      
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
         <div>
           <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-wider">Total Exposure</p>
-          <p class="text-2xl font-mono font-bold text-slate-900 tracking-tight">THB {{ formatCurrency(stats.total_exposure) }}</p>
+          <div v-if="isLoading" class="h-8 w-40 bg-slate-200 rounded animate-pulse mt-1"></div>
+          <p v-else class="text-2xl font-mono font-bold text-slate-900 tracking-tight">THB {{ formatCurrency(stats.total_exposure) }}</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
           <span class="material-icons-outlined">payments</span>
@@ -104,7 +103,8 @@ const getRiskBadgeStyle = (level: string) => {
         <div class="absolute right-0 top-0 w-1 h-full bg-rose-500"></div>
         <div>
           <p class="text-[10px] uppercase font-bold text-rose-500 mb-1 tracking-wider">High Risk Cases</p>
-          <p class="text-2xl font-mono font-bold text-slate-900">{{ stats.high_risk_count }}</p>
+          <div v-if="isLoading" class="h-8 w-16 bg-slate-200 rounded animate-pulse mt-1"></div>
+          <p v-else class="text-2xl font-mono font-bold text-slate-900">{{ stats.high_risk_count }}</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
           <span class="material-icons-outlined">warning</span>
@@ -114,7 +114,8 @@ const getRiskBadgeStyle = (level: string) => {
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
         <div>
           <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 tracking-wider">Decision Inbox</p>
-          <p class="text-2xl font-mono font-bold text-slate-900">{{ stats.open_cases }}</p>
+          <div v-if="isLoading" class="h-8 w-16 bg-slate-200 rounded animate-pulse mt-1"></div>
+          <p v-else class="text-2xl font-mono font-bold text-slate-900">{{ stats.open_cases }}</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
           <span class="material-icons-outlined">inbox</span>
@@ -167,7 +168,24 @@ const getRiskBadgeStyle = (level: string) => {
     <div class="space-y-4">
       
       <div v-if="isLoading" class="space-y-4">
-         <div v-for="i in 3" :key="i" class="h-32 bg-white rounded-xl border border-slate-200 shadow-sm animate-pulse"></div>
+         <div v-for="i in 5" :key="i" class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm animate-pulse">
+            <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+              <div class="flex-1 w-full">
+                 <div class="h-3 w-16 bg-slate-200 rounded mb-3"></div> <div class="h-7 w-3/4 md:w-1/3 bg-slate-200 rounded mb-3"></div> <div class="flex items-center gap-2 mb-4"> <div class="h-4 w-24 bg-slate-200 rounded"></div>
+                    <div class="w-1 h-1 rounded-full bg-slate-200"></div>
+                    <div class="h-4 w-20 bg-slate-200 rounded"></div>
+                    <div class="w-1 h-1 rounded-full bg-slate-200"></div>
+                    <div class="h-4 w-32 bg-slate-200 rounded"></div>
+                 </div>
+                 <div class="flex gap-2"> <div class="h-6 w-16 bg-slate-200 rounded"></div>
+                    <div class="h-6 w-20 bg-slate-200 rounded"></div>
+                    <div class="h-6 w-16 bg-slate-200 rounded"></div>
+                 </div>
+              </div>
+              <div class="w-full md:w-auto flex flex-col items-start md:items-end mt-4 md:mt-0">
+                 <div class="h-3 w-12 bg-slate-200 rounded mb-2"></div> <div class="h-8 w-40 bg-slate-200 rounded mb-3"></div> <div class="h-6 w-24 bg-slate-200 rounded"></div> </div>
+            </div>
+         </div>
       </div>
 
       <div v-else-if="items.length === 0" class="bg-white rounded-xl border border-slate-200 p-16 text-center shadow-sm">

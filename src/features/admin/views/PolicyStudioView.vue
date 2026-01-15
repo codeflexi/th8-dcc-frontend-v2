@@ -61,7 +61,7 @@ authority:
 contract_compliance:
   validity_check: true        # ตรวจวันหมดอายุ
   price_check: true           # ตรวจราคา
-  max_allowed_variance_pct: 5.0  # ยอมให้ราคาเกินสัญญาได้ไม่เกิน 5% (ถ้าเกินถือว่าผิดกฎ)
+  max_allowed_variance_pct: 3.0  # ยอมให้ราคาเกินสัญญาได้ไม่เกิน 3% (ถ้าเกินถือว่าผิดกฎ)
 
 # ==========================================
 # Decision Rules
@@ -159,34 +159,34 @@ rules:
     then:
       decision: REVIEW
   # -------------------------------------------------
-  # 7. Contract Validity (NEW ✅)
+  # 7. Contract Validity
   # -------------------------------------------------
   - id: CONTRACT_EXPIRED
+    type: contract_check  # <--- เติมบรรทัดนี้ ✅
     description: "Purchase order referencing an expired contract"
     risk_impact: CRITICAL
-    # Logic นี้ซับซ้อน จะถูก handle โดย EvaluateContractNode
-    # แต่เราประกาศไว้ตรงนี้เพื่อให้ Engine รู้จัก Action
     then:
       decision: REJECT
 
   # -------------------------------------------------
-  # 8. Price Variance (NEW ✅)
+  # 8. Price Variance
   # -------------------------------------------------
   - id: CONTRACT_PRICE_VARIANCE
-    description: "Unit price exceeds contract agreement (> 5%)"
+    type: contract_check  # <--- เติมบรรทัดนี้ ✅
+    description: "Unit price exceeds contract agreement (> 3%)"
     risk_impact: HIGH
     then:
       decision: ESCALATE
 
   # -------------------------------------------------
-  # 9. No Contract Found (NEW ✅)
+  # 9. No Contract Reference
   # -------------------------------------------------
   - id: NO_CONTRACT_REFERENCE
+    type: contract_check  # <--- เติมบรรทัดนี้ ✅
     description: "Item purchased without active contract reference"
-    risk_impact: MEDIUM
+    risk_impact: LOW 
     then:
       decision: REVIEW
-      
 # ==========================================
 # Override & Governance
 # ==========================================
@@ -200,6 +200,7 @@ override:
 audit:
   log_level: INFO
   retention_days: 90
+
 
 
 `;

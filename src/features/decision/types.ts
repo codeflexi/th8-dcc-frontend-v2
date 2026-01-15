@@ -7,6 +7,7 @@ export interface RuleMatch {
   operator: string;
   expected: any;
   actual: any;
+  note?: string;
 }
 
 export interface RuleResult {

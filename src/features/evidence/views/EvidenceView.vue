@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router';
 // ✅ 1. Import API และ Types
 import { copilotApi, type CopilotEvent } from '@/features/evidence/ api_copilot';
 import type { EvidenceItem } from '@/features/evidence/types'; 
-import { caseApi } from '@/features/cases/api';
+// import { caseApi } from '@/features/cases/api';
 
 // ✅ 2. รับ Props เพื่อใช้เช็ค Rule Results
 const props = defineProps<{
@@ -46,6 +46,16 @@ const isLoading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
 const workflowStatus = ref<string>('Ready'); 
 
+// ✅ NEW: Quick Prompts Data
+const quickPrompts = [
+  { label: '📌 สรุปความเสี่ยง', text: 'สรุปประเด็นความเสี่ยงสำคัญของเคสนี้ให้หน่อย' },
+  { label: '📌 รายละเอียดเคส', text: 'ขอข้อมูลเคสนี้โดยละเอียดหน่อย' },
+  { label: '⚖️ ตรวจสอบกฎ', text: 'ทำไมเคสนี้ถึงถูกประเมินว่าเป็น High Risk มีกฎข้อไหนที่ไม่ผ่านบ้าง?' },
+  { label: '🏢 ประวัติ Vendor', text: 'ขอประวัติย้อนหลังของ Vendor รายนี้ ว่าเคยมีเคสทุจริตหรือส่งของล่าช้าไหม?' },
+  { label: '💰 เช็คราคา', text: 'ช่วยตรวจสอบเทียบราคาใน PO กับราคาตลาดหรือสัญญาให้หน่อย' },
+  { label: '📝 ร่างอีเมล Reject', text: 'ช่วยร่างอีเมลแจ้งปฏิเสธ Vendor รายนี้แบบเป็นทางการให้หน่อย' },
+];
+
 // --- ✅ NEW: Auto-Trigger Evidence Search Logic ---
 const triggerAutoContext = async () => {
   const payload = props.caseData?.payload;
@@ -77,32 +87,6 @@ const triggerAutoContext = async () => {
       isLoading.value = false;
       workflowStatus.value = 'Ready';
     }
-  }
-};
-
-// 1. เพิ่มฟังก์ชันสำหรับเช็คกฎและสั่งค้นหาอัตโนมัติ
-const initAutoSearch = async () => {
-  try {
-    // ดึงข้อมูลเคสมาเช็คว่าติดกฎเรื่องราคาไหม
-    const caseDetail = await caseApi.getById(caseId);
-    const results = caseDetail?.payload?.last_rule_results || [];
-    
-    // ถ้าเจอว่าราคาผิดปกติ (Rule Hit)
-    if (results.some((r: any) => r.rule_id === 'CONTRACT_PRICE_VARIANCE' && r.hit)) {
-      const payload = caseDetail.payload;
-      const autoQuery = `ตรวจสอบราคา ${payload.line_items?.[0]?.sku} ของ ${payload.vendor_name}`;
-      
-      isLoading.value = true;
-      // สั่ง AI ค้นหาเบื้องหลัง (ไม่โชว์ข้อความใน Chat)
-      await copilotApi.streamChat(
-        { case_id: caseId, query: autoQuery },
-        (event) => handleStreamEvent(event, 'auto') // 'auto' จะทำให้ไม่ขึ้นข้อความในแชท
-      );
-    }
-  } catch (err) {
-    console.error("Auto Search Error:", err);
-  } finally {
-    isLoading.value = false;
   }
 };
 
@@ -196,6 +180,12 @@ const handleSend = async () => {
       aiMsg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
   }
+};
+
+// ✅ NEW: Handler for Quick Prompts
+const usePrompt = (text: string) => {
+  query.value = text;
+  handleSend();
 };
 
 // --- Event Handler ---
@@ -296,7 +286,7 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
           </div>
         </div>
   
-        <div class="h-[240px] border-t border-slate-200 bg-white flex flex-col shrink-0">
+        <div class="h-[200px] border-t border-slate-200 bg-white flex flex-col shrink-0">
            <div class="px-4 py-2 flex justify-between items-center bg-slate-50 border-b border-slate-100">
               <h3 class="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
                  <span class="material-icons-outlined text-sm">find_in_page</span>
@@ -331,8 +321,20 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
            </div>
         </div>
   
-        <div class="p-3 bg-white border-t border-slate-200 shrink-0 z-20">
-           <div class="relative">
+        <div class="bg-white border-t border-slate-200 shrink-0 z-20 flex flex-col">
+           
+           <div v-if="!isLoading" class="px-3 pt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              <button 
+                 v-for="(prompt, idx) in quickPrompts" 
+                 :key="idx"
+                 @click="usePrompt(prompt.text)"
+                 class="shrink-0 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[11px] text-slate-600 hover:bg-red-50 hover:text-primary hover:border-red-100 transition-colors whitespace-nowrap shadow-sm"
+              >
+                 {{ prompt.label }}
+              </button>
+           </div>
+  
+           <div class="p-3 relative">
               <input 
                  v-model="query" @keydown.enter="handleSend"
                  :disabled="isLoading"
@@ -341,7 +343,7 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
               />
               <button 
                  @click="handleSend" :disabled="!query || isLoading"
-                 class="absolute right-1.5 top-1.5 p-1.5 bg-primary text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition shadow-sm"
+                 class="absolute right-4.5 top-4.5 p-1.5 bg-primary text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition shadow-sm"
               >
                  <span v-if="isLoading" class="material-icons-outlined text-xs animate-spin">refresh</span>
                  <span v-else class="material-icons-outlined text-xs block">send</span>
@@ -403,4 +405,14 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
 <style scoped>
 .animate-enter { animation: enter 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Hide Scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide Scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
 </style>

@@ -1,7 +1,5 @@
 // src/features/evidence/types.ts
 
-// src/features/evidence/types.ts
-
 export interface HighlightBox {
   x: number;
   y: number;
@@ -11,15 +9,17 @@ export interface HighlightBox {
 
 export interface EvidenceItem {
   id: string;
-  docId: string;
-  docTitle: string;
-  page: number;
-  content: string;
-  score: number; // คะแนนความเหมือน (0.0 - 1.0)
-  matchType: 'EXACT' | 'SEMANTIC';
-  highlightBox?: HighlightBox; // พิกัดสำหรับทำ Highlight บน PDF (Optional)
+  docId: string;       // ID ของเอกสาร (เช่น 'proc-2024.pdf')
+  docTitle: string;    // ชื่อเอกสารที่แสดงผล
+  content: string;     // ข้อความที่ Highlight
+  score: number;       // คะแนนความเหมือน (0.0 - 1.0)
   
-  // Optional fields (เผื่อไว้สำหรับ state หน้าบ้าน)
+  // Optional Fields (บางที AI Stream อาจจะยังไม่ส่ง Page หรือ Box มาให้)
+  page?: number;       
+  matchType?: 'EXACT' | 'SEMANTIC';
+  highlightBox?: HighlightBox; 
+  
+  // State สำหรับ Frontend
   isAttached?: boolean;
 }
 
