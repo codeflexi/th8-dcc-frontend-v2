@@ -15,7 +15,7 @@ export const copilotApi = {
   ) {
     try {
       // เรียกไปยัง Backend (ผ่าน Vite Proxy)
-      const response = await fetch('/api/copilot/chat/stream', {
+      const response = await fetch('/api/evidence/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
